@@ -1,0 +1,79 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+ <head>
+  <title>net-mon</title>
+  <meta http-equiv="Content-Type"  content="text/html; charset=UTF-8" />
+  <meta name="keywords" content="net-mon"/>
+	<style type="text/css">
+		body {
+			padding: 0;
+			margin: 0;
+			font-size: 10pt;
+		}
+		h1, h3, h3 {
+			margin: 0;
+			padding: 0;
+			line-height: 1.7em;
+			font-weight: normal;
+		}
+		a:active {
+			text-decoration: underline; 
+			color: black;
+		}
+		a:hover {
+			text-decoration: underline; 
+			color: black;
+		}
+		a:link {
+			text-decoration: underline; 
+			color: black;
+		}
+		a:visited {
+			text-decoration: underline; 
+			color: gray;
+		}
+		#container {
+			margin-left: 30px;
+			top: 0;
+			left: 0;
+		}
+		#table-net-mon {
+			margin-left: 30px;
+		}
+		#table-net-mon tr th {
+			padding: 0.5em 1em 0.5em 1em;
+			border-bottom: 2px dashed black;
+		}
+		.table-tr-net-mon td {
+			padding: 0.5em 1em 0.5em 1em;
+			border-bottom: 1px dashed black;
+		}
+		.state-fail { color: #A60000; }
+		.state-ok {color: #008500; }
+	</style>
+ </head>
+ <body>
+	 <div id="container">
+		 <span id="top"></span>
+		 <h1>[net-mon]</h1>
+		 <h3>Poslední aktualizace: <TMPL_VAR NAME="LASTCHECK"></h3>
+		 <h3>Aktualní čas: <TMPL_VAR NAME="DATECURR"></h3>
+		 <br />
+		 <p>Pokud chcete zasílat informace o změnách stavu zařízení, dejte mi vědět. <br />stybla</p>
+		 <table id="table-net-mon">
+			 <tr>
+				 <th>zařízení</th>
+				 <th>stav</th>
+			 </tr>
+			 <TMPL_LOOP NAME="NODES">
+			 <tr class="table-tr-net-mon">
+				 <td><TMPL_VAR NAME="NODE"></td>
+				 <td class="<TMPL_VAR STATECLASS>"><TMPL_VAR NAME="STATE"></td>
+			 </tr>
+			 </TMPL_LOOP>
+		 </table>
+		 <br />
+		 <a href="#top">Nahoru</a>
+		</div>
+ </body>
+</html>
