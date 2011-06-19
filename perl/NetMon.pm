@@ -6,16 +6,41 @@ use HTML::Template;
 use warnings;
 use strict;
 
+my $configFile = '../conf/config.sh';
+my $tmplPath = '..//';
+
 sub start 
 {
-	# DBI params;
-	my $dbiDSN = 'dbi:PgPP:dbname=net-mon;host=10.117.0.1;port=5432';
-	my $dbiUser = '';
-	my $dbiPswd = '';
-	# Other params;
-	my $tmplPath = "./net-mon/";
+	if ( ! -e $configFile )
+	{
+		my $retStr = sprintf("Config file '%s' not found or not readable.\n", 
+			$configFile);
+		return $retStr;
+	}
+	my %CFG;
+	open(FH_CONFIG, '<', $configFile) or die("Unable to open '$!' for reading.");
+	while (my $cfgLine = <FH_CONFIG>)
+	{
+		chomp($cfgLine);
+		$cfgLine =~ s/^\s+//g;
+		$cfgLine =~ s/\s+$//g;
+		if (!$cfgLine)
+		{
+			next;
+		} # if ! $cfgLine
+		if ($cfgLine =~ /^#/)
+		{
+			next;
+		} # if $cfgLine
+		my $pos = index($cfgLine, '=');
+		my $key = substr($cfgLine, 0, $pos);
+		my $val = substr($cfgLine, $pos+1);
+	#	my ($key, $val) = split(/=/, $cfgLine);
+		$CFG{$key} = $val;
+	} # while $line
+	close(FH_CONFIG) or die("Unable to close '$!'; already closed?");
 
-	my $dbh = DBI->connect($dbiDSN, $dbiUser, $dbiPswd);
+	my $dbh = DBI->connect($CFG{'dbiDSN'}, $CFG{'dbiUser'}, $CFG{'dbiPswd'});
 	if (!$dbh) 
 	{
 			my $msg = "Unable to connect do DB";
