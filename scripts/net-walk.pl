@@ -289,7 +289,15 @@ while ( my $entry = $searchNodes->shift_entry() )
 				my $mngrMails = $mngrEntry->get_value('mail', asref => 1);
 				foreach my $mngrEmail (@$mngrMails) 
 				{
-					`echo '$msg' | mailto -s '$subject' $mngrEmail`;
+					my %mail = (
+						From => $mailSender,
+						Subject => $subject,
+						'X-Mailer' => "Mail::Sendmail version $Mail::Sendmail::VERSION",
+					);
+					$mail('Content-Type'} = 'text/plain; charset=UTF-8';
+					$mail{'smtp'} = $smtpServer;
+					$mail{'message :'} = $msg;
+					$mail{'To :'} = $mngrEmail;
 				} # foreach $mngrEmail
 			} # if $mngrSearch
 		} # foreach $manager
