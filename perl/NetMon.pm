@@ -6,11 +6,10 @@ use HTML::Template;
 use warnings;
 use strict;
 
-my $configFile = '../conf/config.sh';
-my $tmplPath = '..//';
-
 sub start 
 {
+	my $self = shift;
+	my $configFile = shift || '../conf/config.sh';
 	if ( ! -e $configFile )
 	{
 		my $retStr = sprintf("Config file '%s' not found or not readable.\n", 
@@ -78,7 +77,7 @@ sub start
 		);
 		push(@nodes, \%item);
 	} # foreach $node
-	my $tmplFile = sprintf("%s/net-mon.tmpl", $tmplPath);
+	my $tmplFile = sprintf("%s/net-mon.tmpl", $CFG{'tmplPath'});
 	my $template = HTML::Template->new(filename => $tmplFile);
 	$template->param('LASTCHECK', $dbMaxTime);
 	$template->param(NODES => \@nodes);
