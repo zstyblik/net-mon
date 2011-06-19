@@ -2,8 +2,6 @@
 # Net-mon Add Node LDIF Generator
 # part of the Net-mon
 #
-# See help for usage
-#
 # 2009/Sep/25 @ Zdenek Styblik
 #
 my $dn = 'dc=turnovfree,dc=net';
@@ -15,94 +13,110 @@ sub addNode
 	my $cn = undef;
 	while ($cn !~ /^[A-Za-z0-9].+$/) 
 	{
-		print "Enter node name [foo]: ";
+		printf "Enter node name [foo]: ";
 		$cn = <STDIN>;
 		chomp($cn);
-		print "\n";
+		printf "\n";
 	} # while $cn
 	## LOCATION
-	print "Enter location of node [moon]: ";
+	printf "Enter location of node [moon]: ";
 	my $l = <STDIN>;
 	chomp($l);
-	print "\n";
+	printf "\n";
+	## IP
+	printf "IP address of node [192.168.1.1]: ";
+	my $ip = <STDIN>;
+	chomp($ip);
+	printf "\n";
 	## PORT
 	my $port = undef;
 	while ($port !~ /^[0-9].+$/) 
 	{
-		print "Port on node to poke at [80]: ";
+		printf "Port on node to poke at [80]: ";
 		$port = <STDIN>;
 		chomp($port);
-		print "\n";
+		printf "\n";
 	} # while $port
-	## IP
-	print "IP address of node [192.168.1.1]: ";
-	my $ip = <STDIN>;
-	chomp($ip);
-	print "\n";
 	## PROTOCOL
 	my $proto = undef;
-	my $go = 0;
-	while ($go == 0) 
+	while (1 > 0) 
 	{
-		print "Protocol to use [icmp/udp/tcp]: ";
+		printf "Protocol to use [icmp/udp/tcp]: ";
 		$proto = <STDIN>;
 		chomp($proto);
-		print "\n";
-		switch ($proto) 
+		printf "\n";
+		if ($proto eq 'icmp')
 		{
-			case 'icmp'	{ $go = 1 }
-			case 'udp'	{ $go = 1 }
-			case 'tcp'	{ $go = 1 }
-			else				{ $go = 0 }
-		}
+			last;
+		} elsif ($proto eq 'udp')
+		{
+			last;
+		} elsif ($proto eq 'tcp')
+		{
+			last;
+		} # if $proto
 	} # while $go
 	## MANAGER
 	my $managerUid = undef;
 	while ($managerUid !~ /^[A-Za-z0-9]{1,}+$/) 
 	{
-		print "Manager of device\n";
-		print "0 - disable\n";
-		print "Manager UID [admin]: ";
+		printf "Manager of device\n";
+		printf "0 - disable\n";
+		printf "Manager UID [admin]: ";
 		$managerUid = <STDIN>;
 		chomp($managerUid);
-		print "\n";
+		printf "\n";
 	} # while $managerUid
 	## WRITE FILE
-	my $file = '>'.$cn.'.add.ldif';
-	open(FILE, $file);
-	print FILE "# cn=$cn,ou=net-mon,$dn\n";
-	print FILE "dn: cn=$cn,ou=net-mon,$dn\n";
-	print FILE "objectClass: ipHost\n";
-	print FILE "objectClass: top\n";
-	print FILE "objectClass: ipService\n";
-	print FILE "l: $l\n";
-	print FILE "ipServicePort: $port\n";
-	print FILE "ipHostNumber: $ip\n";
-	print FILE "cn: $cn\n";
-	print FILE "ipServiceProtocol: $proto\n";
-	if ($managerUid !~ /^[0]{1}$/) 
+	my $file = sprintf("%s.add.ldif", $cn);
+	open(FILE, '>', $file) or die("Unable to open '$0' for writing.");
+	printf FILE "# cn=%s,ou=net-mon,%s\n", $cn, $dn;
+	printf FILE "dn: cn=%s,ou=net-mon,%s\n", $cn, $dn;
+	printf FILE "objectClass: ipHost\n";
+	printf FILE "objectClass: top\n";
+	printf FILE "objectClass: ipService\n";
+	printf FILE "l: %s\n", $l;
+	printf FILE "ipServicePort: %s\n", $port;
+	printf FILE "ipHostNumber: %s\n", $ip;
+	printf FILE "cn: %s\n", $cn;
+	printf FILE "ipServiceProtocol: %s\n", $proto;
+	if ($managerUid ne "0") 
 	{
-		print FILE "manager: uid=$managerUid,$dnPeople\n";
+		printf FILE "manager: uid=%s,%s\n", $managerUid, $dnPeople;
 	} # if $managerUid
-	close FILE;
+	close(FILE) or die("Unable to close '$0', already closed?");
 	return 0;
 } # sub addNode
 
 sub help 
 {
-	print "Net-mon Add node LDIF generator\n";
-	print "Help:\n";
-	print "	-a	add node\n";
-	print "	-h	print this help\n";
-	print "\n";
+	printf "Net-mon Add node LDIF generator\n";
+	printf "Usage:\n";
+	printf "  -a\tadd node\n";
+	printf "  -h\tprint this help\n";
+	printf "\n";
 	return 0;
 } # sub help
 
 ## MAIN
-switch ($ARGV[0]) 
+my $argNo = $#ARGV;
+
+if ($argNo != 1)
 {
-	case '-a'	{ addNode }
-	case '-h'	{ help }
-	else			{ help }
-}
+	&help;
+	exit 1;
+} # if $argNo
+
+my $argument = $ARGV[0]; 
+
+if ($argument eq '-a')
+{
+	&addNode();
+} elsif ($argument eq '-h')
+{
+	&help();
+} else
+{
+	&help();
+} # if $argument
 
