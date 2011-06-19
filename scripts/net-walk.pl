@@ -81,21 +81,6 @@ sub checkTCP
 	}
 	return $retVal;
 } # sub checkTCP
-# sub checkTCP_old {
-# sending data over TCP seems to be like waste...like whole TCP check.
-#	my $ip = inet_aton($ipaddr);
-#	my $portaddr = sockaddr_in(0, $ip);
-#	my $bytes;
-#	$bytes = $sock->send("Ping!\n", 0, $portaddr);
-#	if ($bytes !~ length("Ping!\n")) {
-#		close($sock);
-#		return 0;
-#	}
-#	my ($datagram, $flags);
-#	$sock->recv($datagram, 4, $flags);
-#	close($sock);
-#	return 0 unless $datagram;
-# } # sub checkTCP_old
 
 # NOTE: Untested/no-worky!
 # desc: check if the node is alive via UDP; unreliable because of UDP
