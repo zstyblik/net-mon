@@ -57,7 +57,13 @@ sub start
 	my $template = HTML::Template->new(filename => $tmplFile);
 	$template->param('LASTCHECK', $dbMaxTime);
 	$template->param(NODES => \@nodes);
-	my $date = `/usr/bin/date +'%Y-%m-%d %H:%M:%S'`;
+
+	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+	$year = $year + 1900;
+	$mon = $mon + 1;
+	$date = sprintf("%.4i-%.2i-%.2i %.2i:%.2i:%.2i\n", $year, $mon, $mday, 
+		$hour, $min, $sec);
+
 	$template->param('DATECURR', $date);
 	return $template->output;
 } # sub start
