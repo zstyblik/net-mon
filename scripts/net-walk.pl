@@ -123,7 +123,7 @@ sub checkUDP
 ### MAIN ###
 if ( ! -e $configFile )
 {
-	die("Config file '%s' doesn't exist or not readable.");
+	die("Config file '$configFile' doesn't exist or not readable.");
 } # if ! -e $configFile
 
 my %CFG;
