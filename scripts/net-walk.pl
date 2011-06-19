@@ -1,15 +1,17 @@
 #!/usr/bin/perl -w
-# Simple Node availability monitor
-# run from cron one per some period
-# uses % mailto; command
+# Desc: Simple Node availability monitor; run via cron once per some period
 # 2009/07/22 @ Zdenek Styblik
-# 2009/07/29 @ last update
 use strict;
-use Net::LDAP;
-use Net::LDAP::Constant;
-use Net::Ping;
+use warnings;
+
 use DBI;
-use Socket; 
+use Mail::SendMail;
+use Net::LDAP::Constant;
+use Net::LDAP;
+use Net::Ping;
+use Socket;
+
+my $debug = 0;
 
 # LDAP options;
 my $ldapHost = 'ldaps://';
@@ -25,36 +27,61 @@ my $dbiDSN = 'dbi:PgPP:dbname=net-mon;host=localhost;port=5432';
 my $dbiUser = '';
 my $dbiPswd = '';
 
-# desc: ripped-off from 'http://korenofer.blogspot.com/2009/02/\
-# simple-udp-port-scanner-in-perl-icmp_14.html' on 2009/22/07
-# desc: thanks!!!
-# desc: check node via ping
-# desc: requires root privilege!
+# desc: check node via Ping ICMP which requires *root* privilege!
 # $ip: string [ipv4];
 # @return: bit;
-sub checkICMP {
+sub checkICMP 
+{
 	my $ip = shift;
-	my $p = Net::Ping->new( "icmp", 1, 64 );
-	if ( $p->ping($ip) ) {
-		return 1;
-	} else {
-		return 0;
+	my $timeout = 1;
+	my $p = Net::Ping->new("icmp", $timeout, 64);
+	if ($localAddr)
+	{
+		$p->bind($localAddr);
 	}
-}
-
+	my $retVal = 0;
+	my $counter = 0;
+	while ($counter < 3)
+	{
+		if ($p->ping($ip, $timeout) && $retVal == 0) 
+		{
+			$retVal = 1;
+		} # if $p->ping
+		$counter++;
+	}
+	$p->close();
+	return $retVal;
+} # sub checkICMP
 # desc: check if the node is alive via TCP
 # $ipaddr: string [ipv4 addr];
 # $proto: integer;
 # @return: bit;
-# ToDo: add validation for $ipaddr and $proto;
-sub checkTCP {
-	my ($ipaddr, $port) = @_;
+sub checkTCP 
+{
+	my $ipaddr = shift || undef;
+	my $port = shift || undef;
+	unless ($ipaddr || $port)
+	{
+		return 0;
+	} # unless $ipaddr || $port
+	if ($port !~ /^[0-9]+$/)
+	{
+		return 0;
+	} # if $port
 	my $sock = IO::Socket::INET->new(
 		PeerAddr => $ipaddr, 
 		PeerPort => $port,
 		Proto => 'tcp', 
 	);
-	return 0 unless $sock;
+	my $retVal = 0;
+	if ($socket)
+	{
+		$retVal = 1
+		$sock->close;
+	}
+	return $retVal;
+} # sub checkTCP
+# sub checkTCP_old {
 # sending data over TCP seems to be like waste...like whole TCP check.
 #	my $ip = inet_aton($ipaddr);
 #	my $portaddr = sockaddr_in(0, $ip);
@@ -68,150 +95,226 @@ sub checkTCP {
 #	$sock->recv($datagram, 4, $flags);
 #	close($sock);
 #	return 0 unless $datagram;
-	return 1;
-}
+# } # sub checkTCP_old
 
-# ToDo: this sh*t is broken;
-# ToDo: this function doesn't actually work;
-# ToDo: server doesn't reply to our UDP packets;
-# ToDo: if somebody knows how to fix this/make it work, let me know;
-# ToDo: time-out;
-# desc: check if the node is alive via UDP;
-# desc: unreliable because of nature of UDP;
+# NOTE: Untested/no-worky!
+# desc: check if the node is alive via UDP; unreliable because of UDP
 # $ipaddr: string [ipv4 addr];
 # $proto: integer;
 # @return: bit;
-sub checkUDP {
-	my ($ipaddr, $port) = @_;
+sub checkUDP 
+{
+	my $ipaddr = shift || undef;
+	my $port = shift || undef;
+	unless ($ipaddr || $port)
+	{
+		return 0;
+	} # unless $ipaddr || $port
+	if ($port !~ /^[0-9]+$/)
+	{
+		return 0;
+	} # if $port
 	my $message = IO::Socket::INET->new(
 		PeerAddr=> $ipaddr,
 		PeerPort => $port,
 		Proto => 'udp',
+		Timeout => 2,
 	);
-	die("Unable to create socket $@\n") unless $message;
+	unless ($message)
+	{
+		return 0;
+	} # unless $message
 	my $ip = inet_aton($ipaddr);
 	my $portaddr = sockaddr_in($port, $ip);
 	my $bytes = $message->send(0, 0, $portaddr);
-	my ($datagram,$flags);
-	$message->recv($datagram, 4, 0) or die("Mr.Foo");
+	my ($datagram, $flags);
+	my $retVal = 0;
+	if ( $message->recv($datagram, 4, 0) )
+	{
+		$retVal = 1;
+	} else
+	{
+		$retVal = 0;
+	} # if $message->recv
 	close($message);
-	return 0 unless $datagram;
-	return 1;
-}
+	if ($datagram)
+	{
+		$retVal = 1;
+	} else
+	{
+		$retVal = 0;
+	} # if $datagram
+	return $retVal;
+} # sub checkUDP
 
 # connect to the LDAP server;
-my $ldap = Net::LDAP->new($ldapHost, port=> $ldapPort, 
-	version => $ldapVersion) 
-	or die("Unable to connect LDAP server\n");
+my $ldap = Net::LDAP->new(
+	$ldapHost, 
+	port=> $ldapPort, 
+	version => $ldapVersion
+)	or die("Unable to connect LDAP server\n");
 # send start_tls, eventually;
-if ($ldapTLS =~ 1) {
+if ($ldapTLS =~ 1) 
+{
  	my $msg = $ldap->start_tls;
-	if (!$msg) {
+	if (!$msg) 
+	{
  		die("Unable to LDAP start_tls\n");
-	}
-}
+	} # if !$msg
+} # if $ldapTLS
+
 # bind to the LDAP server;
 my $msg = $ldap->bind($ldapBindDN, password => $ldapPswd);
-if (!$msg) {
+if (!$msg) 
+{
  	die("Unable to bind to LDAP - wrong credentials?\n");
-}
+} # if !$msg
+
 # search for the entries;
-my $searchNodes = $ldap->search(base => $ldapBaseDN, 
-	filter => $ldapFilter, scope => 'sub', attrs => ['*']);
-if (!$searchNodes) {
+my $searchNodes = $ldap->search(
+	base => $ldapBaseDN, 
+	filter => $ldapFilter, 
+	scope => 'sub', 
+	attrs => ['*']
+);
+if (!$searchNodes) 
+{
 	die("Found 0 entries, or failed search.\n");
-}
+} # if !$searchNodes
 my $entryCount = $searchNodes->count;
-### DEBUG ###
-#print "Search has returned $entryCount entries.\n";
-# do only, if there are some entries;
-if ($entryCount > 0) {
-	my $dbh = DBI->connect($dbiDSN, $dbiUser, $dbiPswd)
-		or die("Unable to connect do DB");
-	my $date = `/usr/bin/date +'%Y-%m-%d %H:%M:%S'`;
-	# presume all nodes have been updated at once and the last time 
-	# they've been scanned is united. this can be, however, wrong.
-	my $sqlSMaxTime = "SELECT MAX(log_time) AS max_log_time \
-	FROM net_mon;";
-	my $dbMaxTime = $dbh->selectrow_array($sqlSMaxTime) || undef;
-
-	while (my $entry = $searchNodes->shift_entry()) {
-		my $cn = $entry->get_value('cn');
-		my $ipaddr = $entry->get_value('ipHostNumber');
-		my $port = $entry->get_value('ipServicePort');
-		my $proto = $entry->get_value('ipServiceProtocol');
-		my $state;
-		### DEBUG ###
-#		print "### Checking: $ipaddr:$port\n";
-		
-		($state = &checkTCP($ipaddr, $port)) if $proto =~ 'tcp';
-		($state = &checkUDP($ipaddr, $port)) if $proto =~ 'udp';
-		($state = &checkICMP($ipaddr)) if $proto =~ 'icmp';
-
-		my $stateStr = 'down';
-		$stateStr = 'up' unless $state == 0;
-		
-		# in case DB is empty, or whatever.
-		my $resultPrev = undef;
-		if ($dbMaxTime) {
-			my $sqlSPrev = "SELECT state FROM net_mon \
-				WHERE dn = '".$entry->dn."' AND log_time = '$dbMaxTime';";
-			$resultPrev = $dbh->selectrow_hashref($sqlSPrev);
-		}
-		# state is different than the last time. this should eliminate 
-		# constant e-mailing about down [especially]. the question is, 
-		# do we want to be notified about down->up ?
-		my $subject;
-		my $msg;
-		my $doMail = 0;
-		if (($resultPrev) && ($state != $resultPrev->{state})) {
-			$doMail = 1;
-			### DEBUG ###
-#			print "Mailing changes!\n";
-			my $statePrev = 'down';
-			$statePrev = 'up' unless $resultPrev->{state} == 0;
-			$subject = "[net-mon] $cn - '$stateStr'";
-			$msg = "Stav zarizeni *$cn* ($ipaddr) se od posledni \
-			kontroly '$dbMaxTime' zmenil z *$statePrev* na *$stateStr*. \
-			Scan provedeny pres $proto.
-			
-			
-			Webove rozhrani na http://www.turnovfree.net/net-mon/";
-		}
-		# we couldn't find previous evidence in db about this node.
-		# strange huh?
-		if (!$resultPrev) {
-			$doMail = 1;
-			### DEBUG ###
-#			print "Mailing for the 1st time!\n";
-			$msg = "Zarizeni $cn ($ipaddr) bylo scanovano prvne (?). \
-			Scanovano pres '$proto'; stav: '$stateStr';
-			
-			
-			Webove rozhrani na http://www.turnovfree.net/net-mon/";
-			$subject = "[net-mon] $cn";
-		}
-		if ($doMail == 1) {
-			my $managers = $entry->get_value('manager', asref => 1);
-	 		foreach my $manager (@$managers) {
-				my $mngrSearch = $ldap->search(base => $manager, 
-					filter => '(objectClass=*)', scope => 'base', 
-					attrs => '*');
-				if ($mngrSearch->count == 1) {
-					my $mngrEntry = $mngrSearch->entry(0);
-					my $mngrMails = $mngrEntry->get_value('mail', asref => 1);
-					foreach my $mngrEmail (@$mngrMails) {
-						`echo '$msg' | mailto -s '$subject' $mngrEmail`;
-					}
-				}
-			}
-		}
-		my $sqlInsert = "INSERT INTO net_mon (dn, log_time, state) \
-		VALUES ('".$entry->dn."', '$date', '$state');";
-		$dbh->do($sqlInsert);
-	}
+if ($debug != 0)
+{
+	printf("Search has returned %i entries.\n", $entryCount);
+} # if $debug
+if ($entryCount < 1) 
+{
 	$ldap->unbind;
 	$ldap->disconnect;
-	$dbh->disconnect;
+	exit 0
 }
+my $dbh = DBI->connect($dbiDSN, $dbiUser, $dbiPswd)
+	or die("Unable to connect do DB");
+
+my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+$year = $year + 1900;
+$mon = $mon + 1;
+$date = sprintf("%.4i-%.2i-%.2i %.2i:%.2i:%.2i\n", $year, $mon, $mday, 
+	$hour, $min, $sec);
+
+# presume all nodes have been updated at once and the last time 
+# they've been scanned is united. this can be, however, wrong.
+my $sqlSMaxTime = "SELECT MAX(log_time) AS max_log_time \
+	FROM net_mon;";
+my $dbMaxTime = $dbh->selectrow_array($sqlSMaxTime) || undef;
+
+while ( my $entry = $searchNodes->shift_entry() ) 
+{
+	my $cn = $entry->get_value('cn');
+	my $ipaddr = $entry->get_value('ipHostNumber');
+	my $port = $entry->get_value('ipServicePort');
+	my $proto = $entry->get_value('ipServiceProtocol');
+	my $state = 0;
+	if ($debug != 0)
+	{
+		printf("### Checking: %s:%i\n", $ipaddr, $port);
+	} # if $debug
+	if ($proto eq 'tcp') 
+	{
+		$state = &checkTCP($ipaddr, $port);
+	} elsif ($proto eq 'udp')
+	{
+		$state = &checkUDP($ipaddr, $port);
+	} elsif ($proto eq 'icmp')
+	{
+		$state = &checkICMP($ipaddr);
+	} else
+	{
+		printf("Unsupported/unknown proto '%s'\n", $proto);
+		continue;
+	}# if $proto
+	my $stateStr = 'down';
+	if ($state != 0)
+	{
+		$stateStr = 'up';
+	} # if $state != 0
+	# in case DB is empty, or whatever.
+	my $resultPrev = undef;
+	if ($dbMaxTime) 
+	{
+		my $sqlSPrev = sprintf("SELECT state FROM net_mon WHERE \
+			dn = '%s' AND log_time = '%s';", $entry->dn, $dbMaxTime);
+		$resultPrev = $dbh->selectrow_hashref($sqlSPrev);
+	} # if $dbMaxTime
+	# state is different than the last time. this should eliminate 
+	# constant e-mailing about down [especially]. the question is, 
+	# do we want to be notified about down->up ?
+	my $subject;
+	my $msg;
+	my $doMail = 0;
+	if (($resultPrev) && ($state != $resultPrev->{state})) 
+	{
+		$doMail = 1;
+		if ($debug != 1)
+		{
+			printf("The state of node has changed -> mail.\n");
+		} # if $debug
+		my $statePrev = 'down';
+		if ($resultPrev->{state} != 0)
+		{
+			$statePrev = 'up';
+		} # if $resultPrev
+		$subject = sprintf("[net-mon] %s - '%s'", $cn, $stateStr);
+		$msg = "Stav zarizeni *$cn* ($ipaddr) se od posledni \
+		kontroly '$dbMaxTime' zmenil z *$statePrev* na *$stateStr*. \
+		Scan provedeny pres $proto.
+		
+		
+		Webove rozhrani na http://www.turnovfree.net/net-mon/";
+	} # if $resultPrev
+	# we couldn't find previous evidence in db about this node.
+	# strange huh?
+	if (!$resultPrev) 
+	{
+		$doMail = 1;
+		if ($debug != 0)
+		{
+			printf("Node not found in DB -> scanned for the 1st time -> mail.\n");
+		} # if $debug
+		$msg = "Zarizeni $cn ($ipaddr) bylo scanovano prvne (?). \
+		Scanovano pres '$proto'; stav: '$stateStr';
+		
+		
+		Webove rozhrani na http://www.turnovfree.net/net-mon/";
+		$subject = sprintf("[net-mon] %s", $cn);
+	} # if !$resultPrev
+	if ($doMail == 1) 
+	{
+		my $managers = $entry->get_value('manager', asref => 1);
+ 		foreach my $manager (@$managers) 
+		{
+			my $mngrSearch = $ldap->search(
+				base => $manager, 
+				filter => '(objectClass=*)', 
+				scope => 'base', 
+				attrs => '*'
+			);
+			if ($mngrSearch->count == 1) 
+			{
+				my $mngrEntry = $mngrSearch->entry(0);
+				my $mngrMails = $mngrEntry->get_value('mail', asref => 1);
+				foreach my $mngrEmail (@$mngrMails) 
+				{
+					`echo '$msg' | mailto -s '$subject' $mngrEmail`;
+				} # foreach $mngrEmail
+			} # if $mngrSearch
+		} # foreach $manager
+	} # if $doMail
+	my $sqlInsert = sprintf("INSERT INTO net_mon (dn, log_time, state) \
+		VALUES ('%s', '%s', '%s');", $entry->dn, $date, $state);
+	$dbh->do($sqlInsert);
+} # while $entry
+
+$ldap->unbind;
+$ldap->disconnect;
+$dbh->disconnect;
 
