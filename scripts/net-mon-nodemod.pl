@@ -69,7 +69,7 @@ sub addNode
 	} # while $managerUid
 	## WRITE FILE
 	my $file = sprintf("%s.add.ldif", $cn);
-	open(FILE, '>', $file) or die("Unable to open '$0' for writing.");
+	open(FILE, '>', $file) or die("Unable to open '$!' for writing.");
 	printf FILE "# cn=%s,ou=net-mon,%s\n", $cn, $dn;
 	printf FILE "dn: cn=%s,ou=net-mon,%s\n", $cn, $dn;
 	printf FILE "objectClass: ipHost\n";
@@ -84,7 +84,7 @@ sub addNode
 	{
 		printf FILE "manager: uid=%s,%s\n", $managerUid, $dnPeople;
 	} # if $managerUid
-	close(FILE) or die("Unable to close '$0', already closed?");
+	close(FILE) or die("Unable to close '$!', already closed?");
 	return 0;
 } # sub addNode
 
