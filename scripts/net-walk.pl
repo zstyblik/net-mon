@@ -10,34 +10,23 @@ use Net::LDAP::Constant;
 use Net::LDAP;
 use Net::Ping;
 use Socket;
-
+### CONFIG
+my $configFile = "../conf/config.sh";
 my $debug = 0;
-
-# LDAP options;
-my $ldapHost = 'ldaps://';
-my $ldapPort = 636;
-my $ldapVersion = 3;
-my $ldapBindDN = 'cn=foo,dc=turnovfree,dc=net';
-my $ldapPswd = '';
-my $ldapTLS = 0;
-my $ldapBaseDN = 'ou=net-mon,dc=turnovfree,dc=net';
-my $ldapFilter = '(&(objectClass=ipHost)(objectClass=ipService))';
-# DBI options;
-my $dbiDSN = 'dbi:PgPP:dbname=net-mon;host=localhost;port=5432';
-my $dbiUser = '';
-my $dbiPswd = '';
 
 # desc: check node via Ping ICMP which requires *root* privilege!
 # $ip: string [ipv4];
+# $localAddress: string [ipv4];
 # @return: bit;
 sub checkICMP 
 {
 	my $ip = shift;
+	my $localAddress = shift || undef;
 	my $timeout = 1;
 	my $p = Net::Ping->new("icmp", $timeout, 64);
-	if ($localAddr)
+	if ($localAddress)
 	{
-		$p->bind($localAddr);
+		$p->bind($localAddress);
 	}
 	my $retVal = 0;
 	my $counter = 0;
@@ -81,7 +70,6 @@ sub checkTCP
 	}
 	return $retVal;
 } # sub checkTCP
-
 # NOTE: Untested/no-worky!
 # desc: check if the node is alive via UDP; unreliable because of UDP
 # $ipaddr: string [ipv4 addr];
@@ -132,14 +120,43 @@ sub checkUDP
 	return $retVal;
 } # sub checkUDP
 
+### MAIN ###
+if ( ! -e $configFile )
+{
+	die("Config file '%s' doesn't exist or not readable.");
+} # if ! -e $configFile
+
+my %CFG;
+open(FH_CONFIG, '<', $configFile) or die("Unable to open '$!' for reading.");
+while (my $cfgLine = <FH_CONFIG>)
+{
+	chomp($cfgLine);
+	$cfgLine =~ s/^\s+//g;
+	$cfgLine =~ s/\s+$//g;
+	if (!$cfgLine)
+	{
+		next;
+	} # if ! $cfgLine
+	if ($cfgLine =~ /^#/)
+	{
+		next;
+	} # if $cfgLine
+	my $pos = index($cfgLine, '=');
+	my $key = substr($cfgLine, 0, $pos);
+	my $val = substr($cfgLine, $pos+1);
+#	my ($key, $val) = split(/=/, $cfgLine);
+	$CFG{$key} = $val;
+} # while $line
+close(FH_CONFIG) or die("Unable to close '$!'; already closed?");
+
 # connect to the LDAP server;
 my $ldap = Net::LDAP->new(
-	$ldapHost, 
-	port=> $ldapPort, 
-	version => $ldapVersion
+	$CFG{'ldapHost'}, 
+	port=> $CFG{'ldapPort'}, 
+	version => $CFG{'ldapVersion'},
 )	or die("Unable to connect LDAP server\n");
 # send start_tls, eventually;
-if ($ldapTLS =~ 1) 
+if ($CFG{'ldapTLS'} =~ 1) 
 {
  	my $msg = $ldap->start_tls;
 	if (!$msg) 
@@ -149,7 +166,8 @@ if ($ldapTLS =~ 1)
 } # if $ldapTLS
 
 # bind to the LDAP server;
-my $msg = $ldap->bind($ldapBindDN, password => $ldapPswd);
+my $ldapBindDN = sprintf("%s,%s", $CFG{'ldapBindDN'}, $CFG{'ldapDN'});
+my $msg = $ldap->bind($ldapBindDN, password => $CFG{'ldapPswd'});
 if (!$msg) 
 {
  	die("Unable to bind to LDAP - wrong credentials?\n");
@@ -157,8 +175,8 @@ if (!$msg)
 
 # search for the entries;
 my $searchNodes = $ldap->search(
-	base => $ldapBaseDN, 
-	filter => $ldapFilter, 
+	base => $CFG{'ldapBaseDN'}, 
+	filter => $CFG{'ldapFilter'}, 
 	scope => 'sub', 
 	attrs => ['*']
 );
@@ -177,7 +195,7 @@ if ($entryCount < 1)
 	$ldap->disconnect;
 	exit 0
 }
-my $dbh = DBI->connect($dbiDSN, $dbiUser, $dbiPswd)
+my $dbh = DBI->connect($CFG{'dbiDSN'}, $CFG{'dbiUser'}, $CFG{'dbiPswd'}) 
 	or die("Unable to connect do DB");
 
 my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
@@ -211,11 +229,11 @@ while ( my $entry = $searchNodes->shift_entry() )
 		$state = &checkUDP($ipaddr, $port);
 	} elsif ($proto eq 'icmp')
 	{
-		$state = &checkICMP($ipaddr);
+		$state = &checkICMP($ipaddr, $CFG{'localAddress'});
 	} else
 	{
 		printf("Unsupported/unknown proto '%s'\n", $proto);
-		continue;
+		next;
 	}# if $proto
 	my $stateStr = 'down';
 	if ($state != 0)
@@ -290,12 +308,12 @@ while ( my $entry = $searchNodes->shift_entry() )
 				foreach my $mngrEmail (@$mngrMails) 
 				{
 					my %mail = (
-						From => $mailSender,
+						From => $CFG{'mailSender'},
 						Subject => $subject,
 						'X-Mailer' => "Mail::Sendmail version $Mail::Sendmail::VERSION",
 					);
 					$mail('Content-Type'} = 'text/plain; charset=UTF-8';
-					$mail{'smtp'} = $smtpServer;
+					$mail{'smtp'} = $CFG{'smtpServer'};
 					$mail{'message :'} = $msg;
 					$mail{'To :'} = $mngrEmail;
 				} # foreach $mngrEmail
