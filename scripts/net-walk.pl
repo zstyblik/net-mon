@@ -5,7 +5,7 @@ use strict;
 use warnings;
 
 use DBI;
-use Mail::SendMail;
+use Mail::Sendmail;
 use Net::LDAP::Constant;
 use Net::LDAP;
 use Net::Ping;
@@ -63,10 +63,10 @@ sub checkTCP
 		Proto => 'tcp', 
 	);
 	my $retVal = 0;
-	if ($socket)
+	if ($sock)
 	{
-		$retVal = 1
-		$sock->close;
+		$retVal = 1;
+		$sock->close();
 	}
 	return $retVal;
 } # sub checkTCP
@@ -201,7 +201,7 @@ my $dbh = DBI->connect($CFG{'dbiDSN'}, $CFG{'dbiUser'}, $CFG{'dbiPswd'})
 my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
 $year = $year + 1900;
 $mon = $mon + 1;
-$date = sprintf("%.4i-%.2i-%.2i %.2i:%.2i:%.2i\n", $year, $mon, $mday, 
+my $date = sprintf("%.4i-%.2i-%.2i %.2i:%.2i:%.2i\n", $year, $mon, $mday, 
 	$hour, $min, $sec);
 
 # presume all nodes have been updated at once and the last time 
@@ -312,7 +312,7 @@ while ( my $entry = $searchNodes->shift_entry() )
 						Subject => $subject,
 						'X-Mailer' => "Mail::Sendmail version $Mail::Sendmail::VERSION",
 					);
-					$mail('Content-Type'} = 'text/plain; charset=UTF-8';
+					$mail{'Content-Type'} = 'text/plain; charset=UTF-8';
 					$mail{'smtp'} = $CFG{'smtpServer'};
 					$mail{'message :'} = $msg;
 					$mail{'To :'} = $mngrEmail;
