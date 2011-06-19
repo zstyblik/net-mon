@@ -85,7 +85,7 @@ sub start
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
 	$year = $year + 1900;
 	$mon = $mon + 1;
-	$date = sprintf("%.4i-%.2i-%.2i %.2i:%.2i:%.2i\n", $year, $mon, $mday, 
+	my $date = sprintf("%.4i-%.2i-%.2i %.2i:%.2i:%.2i\n", $year, $mon, $mday, 
 		$hour, $min, $sec);
 
 	$template->param('DATECURR', $date);
