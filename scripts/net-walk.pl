@@ -316,6 +316,7 @@ while ( my $entry = $searchNodes->shift_entry() )
 					$mail{'smtp'} = $CFG{'smtpServer'};
 					$mail{'message :'} = $msg;
 					$mail{'To :'} = $mngrEmail;
+					sendmail(%mail);
 				} # foreach $mngrEmail
 			} # if $mngrSearch
 		} # foreach $manager
