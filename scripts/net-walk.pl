@@ -257,7 +257,7 @@ while ( my $entry = $searchNodes->shift_entry() )
 	if (($resultPrev) && ($state != $resultPrev->{state})) 
 	{
 		$doMail = 1;
-		if ($debug != 1)
+		if ($debug != 0)
 		{
 			printf("The state of node has changed -> mail.\n");
 		} # if $debug
