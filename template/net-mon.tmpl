@@ -63,11 +63,13 @@
 				<tr>
 					<th>zařízení</th>
 					<th>stav</th>
+					<th></th>
 				</tr>
 				<TMPL_LOOP NAME="NODES"><tr class="table-tr-net-mon">
 					<td><TMPL_VAR NAME="NODE"></td>
 					<td class="<TMPL_VAR STATECLASS>"><TMPL_VAR NAME="STATE"></td>
-					</tr>
+					<td><TMPL_VAR NAME="DOWNTIME"></td>
+				</tr>
 				</TMPL_LOOP>
 			</table>
 			<br />

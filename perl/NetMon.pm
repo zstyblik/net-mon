@@ -66,14 +66,25 @@ sub start
 		$name = substr($name, 3, $cutoff);
 		my $state = 'chyba';
 		my $stateClass = 'state-fail';
+		my $downTime = '';
 		if ($node->{state} == 1) 
 		{
 			$state = 'ok';
 			$stateClass = 'state-ok';
+		} else
+		{
+			my $sqlSLastUp = sprintf("SELECT MAX(log_time) FROM net_mon WHERE \
+				dn = '%s' AND state = '1';", $name);
+			my $lastUp = $dbh->selectrow_array($sqlSLastUp);
+			my $sqlSChangeSt = sprintf("SELECT MIN(log_time) FROM net_mon WHERE \
+				dn = '%s' AND state = '0' AND log_time > '%s' LIMIT 1;", $name, 
+				$lastUp);
+				$downTime = sprintf("[%s]", $dbh->selectrow_array($sqlSChangeSt));
 		} # if node->{state}
 		my %item = ( NODE => $name,
 			STATECLASS => $stateClass,
 			STATE => $state,
+			DOWNTIME => $downTime,
 		);
 		push(@nodes, \%item);
 	} # foreach $node
