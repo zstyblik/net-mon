@@ -156,7 +156,7 @@ my $ldap = Net::LDAP->new(
 	version => $CFG{'ldapVersion'},
 )	or die("Unable to connect LDAP server\n");
 # send start_tls, eventually;
-if ($CFG{'ldapTLS'} =~ 1) 
+if ($CFG{'ldapTLS'} == 1) 
 {
  	my $msg = $ldap->start_tls;
 	if (!$msg) 
@@ -180,8 +180,10 @@ my $searchNodes = $ldap->search(
 	scope => 'sub', 
 	attrs => ['*']
 );
-if (!$searchNodes) 
+if (!$searchNodes || $searchNodes->count < 1) 
 {
+	$ldap->unbind;
+	$ldap->disconnect;
 	die("Found 0 entries, or failed search.\n");
 } # if !$searchNodes
 my $entryCount = $searchNodes->count;
@@ -189,12 +191,7 @@ if ($debug != 0)
 {
 	printf("Search has returned %i entries.\n", $entryCount);
 } # if $debug
-if ($entryCount < 1) 
-{
-	$ldap->unbind;
-	$ldap->disconnect;
-	exit 0
-}
+
 my $dbh = DBI->connect($CFG{'dbiDSN'}, $CFG{'dbiUser'}, $CFG{'dbiPswd'}) 
 	or die("Unable to connect do DB");
 
@@ -209,6 +206,8 @@ my $date = sprintf("%.4i-%.2i-%.2i %.2i:%.2i:%.2i\n", $year, $mon, $mday,
 my $sqlSMaxTime = "SELECT MAX(log_time) AS max_log_time \
 	FROM net_mon;";
 my $dbMaxTime = $dbh->selectrow_array($sqlSMaxTime) || undef;
+
+my @entries = qw();
 
 while ( my $entry = $searchNodes->shift_entry() ) 
 {
@@ -324,7 +323,29 @@ while ( my $entry = $searchNodes->shift_entry() )
 	my $sqlInsert = sprintf("INSERT INTO net_mon (dn, log_time, state) \
 		VALUES ('%s', '%s', '%s');", $entry->dn, $date, $state);
 	$dbh->do($sqlInsert);
+	push(@entries, $entry->dn);
 } # while $entry
+
+my $sqlGetNodes = "SELECT DISTINCT dn FROM net_mon;";
+my $resGetNodes = $dbh->selectall_arrayref($sqlGetNodes, { Slice => {} });
+foreach my $row (@$resGetNodes)
+{
+	my $match = 0;
+	my $dn = $row->{'dn'} || "";
+	foreach my $val (@entries)
+	{
+		if ($val eq $dn) {
+			$match = 1;
+			last;
+		} # if $val
+	} # foreach $val
+	if ($match == 1)
+	{
+		next;
+	} # if $match
+	my $sqlClean = sprintf("DELETE FROM net_mon WHERE dn = '%s';", $dn);
+	$dbh->do($sqlClean);
+} # foreach $dn
 
 $ldap->unbind;
 $ldap->disconnect;
